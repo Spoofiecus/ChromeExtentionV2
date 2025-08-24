@@ -1,33 +1,159 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const addStickerBtn = document.getElementById('add-sticker');
-  const calculateBtn = document.getElementById('calculate');
-  const copyQuoteBtn = document.getElementById('copy-quote');
-  const stickersDiv = document.getElementById('stickers');
-  const resultsDiv = document.getElementById('results');
-  const vinylCostInput = document.getElementById('vinyl-cost');
-  const vatRateInput = document.getElementById('vat-rate');
-  const includeVatCheckbox = document.getElementById('include-vat');
-  const darkModeToggle = document.getElementById('dark-mode-toggle');
-  const materialSelect = document.getElementById('material-select');
+import { DEFAULT_VINYL_COST, DEFAULT_VAT_RATE, MIN_ORDER_AMOUNT } from './js/config.js';
+import { calculatePrice } from './js/calculator.js';
+import { getDOMElements, addStickerInput, renderResults, showToast } from './js/ui.js';
+import { saveDarkMode, loadDarkMode, saveAppState, loadAppState } from './js/storage.js';
 
-  let stickerCount = 0;
+document.addEventListener('DOMContentLoaded', async () => {
+  const dom = getDOMElements();
 
-  // Initialize material selection
-  materialSelect.value = 'unspecified';
+  // --- State Initialization ---
+  let appState = {
+    vinylCost: DEFAULT_VINYL_COST,
+    vatRate: DEFAULT_VAT_RATE,
+    includeVat: false,
+    darkMode: false,
+    material: 'unspecified',
+    roundedCorners: false,
+    stickers: []
+  };
 
-  // Dark Mode Toggle
-  darkModeToggle.addEventListener('change', () => {
-    document.body.classList.toggle('dark-mode', darkModeToggle.checked);
-    localStorage.setItem('darkMode', darkModeToggle.checked);
-  });
-
-  // Load dark mode preference
-  if (localStorage.getItem('darkMode') === 'true') {
-    darkModeToggle.checked = true;
-    document.body.classList.add('dark-mode');
+  const loadedState = await loadAppState();
+  if (loadedState) {
+    appState = { ...appState, ...loadedState };
   }
 
-  // Collapsible Sections (only for Settings)
+  // --- UI Initialization ---
+  dom.vinylCostInput.value = appState.vinylCost;
+  dom.vatRateInput.value = appState.vatRate;
+  dom.includeVatCheckbox.checked = appState.includeVat;
+  dom.materialSelect.value = appState.material;
+  dom.roundedCornersCheckbox.checked = appState.roundedCorners;
+  dom.darkModeToggle.checked = appState.darkMode;
+  document.body.classList.toggle('dark-mode', appState.darkMode);
+
+  if (appState.stickers.length === 0) {
+    addStickerInput(dom.stickersDiv);
+  } else {
+    appState.stickers.forEach(sticker => addStickerInput(dom.stickersDiv, sticker));
+  }
+
+  // --- Event Listeners ---
+
+  // Settings
+  dom.vinylCostInput.addEventListener('change', () => { appState.vinylCost = parseFloat(dom.vinylCostInput.value); saveAppState(appState); });
+  dom.vatRateInput.addEventListener('change', () => { appState.vatRate = parseFloat(dom.vatRateInput.value); saveAppState(appState); });
+  dom.includeVatCheckbox.addEventListener('change', () => { appState.includeVat = dom.includeVatCheckbox.checked; saveAppState(appState); });
+  dom.materialSelect.addEventListener('change', () => { appState.material = dom.materialSelect.value; saveAppState(appState); });
+  dom.roundedCornersCheckbox.addEventListener('change', () => { appState.roundedCorners = dom.roundedCornersCheckbox.checked; saveAppState(appState); });
+
+  // Dark Mode
+  dom.darkModeToggle.addEventListener('change', async () => {
+    appState.darkMode = dom.darkModeToggle.checked;
+    document.body.classList.toggle('dark-mode', appState.darkMode);
+    await saveAppState(appState);
+  });
+
+  // Stickers
+  dom.addStickerBtn.addEventListener('click', () => addStickerInput(dom.stickersDiv));
+
+  // Calculation
+  function calculateAndRender() {
+    const stickerInputs = dom.stickersDiv.querySelectorAll('.sticker-input');
+    appState.stickers = Array.from(stickerInputs).map(input => {
+      const id = input.getAttribute('data-id');
+      return {
+        width: input.querySelector(`#width-${id}`).value,
+        height: input.querySelector(`#height-${id}`).value,
+        quantity: input.querySelector(`#quantity-${id}`).value
+      };
+    });
+    saveAppState(appState);
+
+    const quoteData = calculateQuote();
+    const quoteText = renderResults(dom.resultsDiv, quoteData);
+
+    // Re-attach copy listener
+    const newCopyQuoteBtn = document.getElementById('copy-quote');
+    if(newCopyQuoteBtn) {
+        newCopyQuoteBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(quoteText).then(() => {
+                showToast('Quote copied to clipboard!');
+            });
+        });
+    }
+  }
+
+  dom.calculateBtn.addEventListener('click', calculateAndRender);
+
+  // --- Calculation Logic ---
+  function calculateQuote() {
+    const stickerQuotes = [];
+    let totalCostExclVat = 0;
+
+    appState.stickers.forEach((sticker, index) => {
+      const { price, stickersPerRow } = calculatePrice(sticker.width, sticker.height, appState.vinylCost);
+      if (price === 'Invalid dimensions') {
+        stickerQuotes.push({
+          html: `Sticker ${index + 1}: Invalid dimensions`,
+          text: `Sticker ${index + 1} (${sticker.width}x${sticker.height}mm): Invalid dimensions`
+        });
+      } else {
+        const rows = Math.ceil(sticker.quantity / stickersPerRow);
+        const totalStickers = rows * stickersPerRow;
+        const totalPriceExclVatPerSticker = (price * totalStickers);
+        const totalPriceInclVat = (totalPriceExclVatPerSticker * (1 + appState.vatRate / 100));
+
+        stickerQuotes.push({
+          html: `${sticker.width}x${sticker.height}mm - R${price} excl VAT per sticker (${stickersPerRow} stickers per row)<br>${rows} rows - ${totalStickers} stickers<br>R${totalPriceExclVatPerSticker.toFixed(2)} Excl VAT` + (appState.includeVat ? `<br><span style="margin-left: 20px;">Incl VAT: R${totalPriceInclVat.toFixed(2)}</span>` : ''),
+          text: `${sticker.width}x${sticker.height}mm - R${price} excl VAT per sticker (${stickersPerRow} stickers per row)\n${rows} rows - ${totalStickers} stickers\nR${totalPriceExclVatPerSticker.toFixed(2)} Excl VAT` + (appState.includeVat ? `\nIncl VAT: R${totalPriceInclVat.toFixed(2)}` : '')
+        });
+        totalCostExclVat += totalPriceExclVatPerSticker;
+      }
+    });
+
+    return {
+      material: appState.material,
+      stickerQuotes,
+      totalCostExclVat,
+      totalCostInclVat: totalCostExclVat * (1 + appState.vatRate / 100),
+      includeVat: appState.includeVat,
+      minOrderAmount: MIN_ORDER_AMOUNT,
+      roundedCorners: appState.roundedCorners
+    };
+  }
+
+  // --- Debounce Utility ---
+  function debounce(func, delay) {
+    let timeout;
+    return function(...args) {
+      const context = this;
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(context, args), delay);
+    };
+  }
+
+  const debouncedCalculateAndRender = debounce(calculateAndRender, 300);
+
+  // --- Auto-calculation Listeners ---
+  const inputsToTrack = [
+    dom.vinylCostInput,
+    dom.vatRateInput,
+    dom.includeVatCheckbox,
+    dom.materialSelect,
+    dom.roundedCornersCheckbox
+  ];
+
+  inputsToTrack.forEach(input => {
+    input.addEventListener('change', debouncedCalculateAndRender);
+  });
+
+  dom.stickersDiv.addEventListener('input', (event) => {
+    if (event.target.tagName === 'INPUT') {
+      debouncedCalculateAndRender();
+    }
+  });
+
+  // --- Collapsible sections ---
   document.querySelectorAll('.section-toggle').forEach(button => {
     button.addEventListener('click', () => {
       const targetId = button.getAttribute('data-target');
@@ -37,191 +163,5 @@ document.addEventListener('DOMContentLoaded', () => {
       icon.classList.toggle('active');
       button.setAttribute('aria-expanded', content.classList.contains('active'));
     });
-  });
-
-  // Add a new sticker input field
-  function addStickerInput() {
-    stickerCount++;
-    const stickerInput = document.createElement('div');
-    stickerInput.className = 'sticker-input';
-    stickerInput.setAttribute('data-id', stickerCount);
-    stickerInput.innerHTML = `
-      <div class="input-group">
-        <label for="width-${stickerCount}">Width (mm)</label>
-        <input type="number" id="width-${stickerCount}" min="1" title="Enter the width of the sticker in millimeters" aria-label="Sticker width in millimeters">
-      </div>
-      <div class="input-group">
-        <label for="height-${stickerCount}">Height (mm)</label>
-        <input type="number" id="height-${stickerCount}" min="1" title="Enter the height of the sticker in millimeters" aria-label="Sticker height in millimeters">
-      </div>
-      <div class="input-group">
-        <label for="quantity-${stickerCount}">Quantity</label>
-        <input type="number" id="quantity-${stickerCount}" min="1" value="1" title="Enter the number of stickers needed" aria-label="Sticker quantity">
-      </div>
-      <button class="remove-button" data-id="${stickerCount}" aria-label="Remove sticker"></button>
-    `;
-    stickersDiv.appendChild(stickerInput);
-    stickerInput.style.animation = 'fadeInUp 0.3s ease forwards';
-  }
-
-  // Remove a sticker input field
-  stickersDiv.addEventListener('click', (event) => {
-    if (event.target.closest('.remove-button')) {
-      const button = event.target.closest('.remove-button');
-      const id = button.getAttribute('data-id');
-      const inputDiv = document.querySelector(`.sticker-input[data-id="${id}"]`);
-      if (inputDiv) {
-        inputDiv.style.animation = 'fadeOutDown 0.3s ease forwards';
-        setTimeout(() => inputDiv.remove(), 300);
-      }
-    }
-  });
-
-  // Calculate sticker price
-  function calculatePrice(width, height) {
-    const VINYL_COST = parseFloat(vinylCostInput.value) || 460.00;
-    const ROLL_WIDTH = 650;
-    const BLEED = 1;
-    const MIN_PRICE_PER_STICKER = 0.20;
-
-    const W = parseFloat(width);
-    const H = parseFloat(height);
-
-    if (isNaN(W) || isNaN(H) || W <= 0 || H <= 0) {
-      return { price: 'Invalid dimensions', stickersPerRow: 0 };
-    }
-
-    // Horizontal Orientation
-    const W_bleed_horizontal = W + BLEED;
-    const S_raw_horizontal = ROLL_WIDTH / W_bleed_horizontal;
-    const S_rounded_horizontal = Math.floor(S_raw_horizontal);
-    const H_meters_horizontal = H / 1000;
-    const Area_horizontal = 0.65 * H_meters_horizontal;
-    const Row_Cost_horizontal = Area_horizontal * VINYL_COST;
-    const P_horizontal = S_rounded_horizontal > 0 ? Row_Cost_horizontal / S_rounded_horizontal : Infinity;
-
-    // Vertical Orientation
-    const H_bleed_vertical = H + BLEED;
-    const S_raw_vertical = ROLL_WIDTH / H_bleed_vertical;
-    const S_rounded_vertical = Math.floor(S_raw_vertical);
-    const W_meters_vertical = W / 1000;
-    const Area_vertical = 0.65 * W_meters_vertical;
-    const Row_Cost_vertical = Area_vertical * VINYL_COST;
-    const P_vertical = S_rounded_vertical > 0 ? Row_Cost_vertical / S_rounded_vertical : Infinity;
-
-    const price = Math.min(P_horizontal, P_vertical);
-    const adjustedPrice = Math.max(price, MIN_PRICE_PER_STICKER);
-    const stickersPerRow = price < P_vertical ? S_rounded_horizontal : S_rounded_vertical;
-
-    return { price: adjustedPrice.toFixed(2), stickersPerRow };
-  }
-
-  // Event listener for calculating prices
-  calculateBtn.addEventListener('click', () => {
-    resultsDiv.innerHTML = ''; // Clear previous results
-    // Re-add the copy quote button since innerHTML clears it
-    resultsDiv.innerHTML = `
-      <button id="copy-quote" class="copy-quote-button">
-        <i class="fas fa-copy"></i>
-      </button>
-    `;
-
-    if (materialSelect.value === 'unspecified') {
-      alert('Quote not generated. Reason: no Material specified.');
-      return;
-    }
-
-    let quote = "Dear Customer. Thank you for reaching out to us.\nBelow is your Quote based on your request:\n\n";
-    // Add material to the quote
-    const material = materialSelect.value === 'gloss' ? 'Gloss' : 'MATT';
-    quote += `Material: ${material}\n\n`;
-
-    let totalCostExclVat = 0;
-    const vatRate = parseFloat(vatRateInput.value) / 100 || 0.15;
-    const includeVat = includeVatCheckbox.checked;
-    const MIN_ORDER_AMOUNT = 100.00;
-    const roundedCorners = document.getElementById('rounded-corners').checked;
-
-    const stickerInputs = stickersDiv.querySelectorAll('.sticker-input');
-    stickerInputs.forEach((input, index) => {
-      const widthInput = input.querySelector(`#width-${input.getAttribute('data-id')}`);
-      const heightInput = input.querySelector(`#height-${input.getAttribute('data-id')}`);
-      const quantityInput = input.querySelector(`#quantity-${input.getAttribute('data-id')}`);
-      if (widthInput && heightInput && quantityInput) {
-        const width = widthInput.value;
-        const height = heightInput.value;
-        const quantity = parseInt(quantityInput.value) || 1;
-        if (width && height) {
-          const { price, stickersPerRow } = calculatePrice(width, height);
-          if (price === 'Invalid dimensions') {
-            resultsDiv.innerHTML += `<p>Sticker ${index + 1}: Invalid dimensions</p>`;
-            quote += `Sticker ${index + 1} (${width}x${height}mm): Invalid dimensions\n`;
-          } else {
-            const rows = Math.ceil(quantity / stickersPerRow);
-            const totalStickers = rows * stickersPerRow;
-            const totalPriceExclVatPerSticker = (price * totalStickers).toFixed(2);
-            const totalPriceInclVat = (totalPriceExclVatPerSticker * (1 + vatRate)).toFixed(2);
-            resultsDiv.innerHTML += `<p>${width}x${height}mm - R${price} excl VAT per sticker (${stickersPerRow} stickers per row)<br>${rows} rows - ${totalStickers} stickers<br>R${totalPriceExclVatPerSticker} Excl VAT</p>`;
-            quote += `${width}x${height}mm - R${price} excl VAT per sticker (${stickersPerRow} stickers per row)\n${rows} rows - ${totalStickers} stickers\nR${totalPriceExclVatPerSticker} Excl VAT\n`;
-            if (includeVat) {
-              resultsDiv.innerHTML += `<p style="margin-left: 20px;">Incl VAT: R${totalPriceInclVat}</p>`;
-              quote += `Incl VAT: R${totalPriceInclVat}\n`;
-            }
-            totalCostExclVat += parseFloat(totalPriceExclVatPerSticker);
-          }
-        }
-      }
-    });
-
-    if (totalCostExclVat > 0) {
-      const totalCostInclVat = (totalCostExclVat * (1 + vatRate)).toFixed(2);
-      const totalTextExcl = `Total: R${totalCostExclVat.toFixed(2)} Exclusive of VAT`;
-      resultsDiv.innerHTML += `<p><strong>${totalTextExcl}</strong></p>`;
-      quote += `\n${totalTextExcl}\n`;
-      if (includeVat) {
-        const totalTextIncl = `Total Incl VAT: R${totalCostInclVat}. the complete order total`;
-        resultsDiv.innerHTML += `<p><strong>${totalTextIncl}</strong></p>`;
-        quote += `${totalTextIncl}\n`;
-      }
-
-      if (totalCostExclVat < MIN_ORDER_AMOUNT) {
-        const minimumMessage = 'YOUR ORDER IS UNDER R100.00 EXCL VAT. WE HAVE A MINIMUM ORDER AMOUNT OF R100.00 EXCL VAT';
-        resultsDiv.innerHTML += `<p style="color: #E74C3C; text-transform: uppercase;">${minimumMessage}</p>`;
-        quote += `\n${minimumMessage}\n`;
-      }
-
-      if (roundedCorners) {
-        quote += `\nCutline with rounded Corners\n`;
-      }
-
-      quote += `\nPlease let us know if this quote is accepted so we can proceed with printing.\n`;
-      localStorage.setItem('quote', quote);
-      resultsDiv.classList.add('show');
-    }
-
-    // Re-attach the event listener for the copy quote button
-    const newCopyQuoteBtn = document.getElementById('copy-quote');
-    newCopyQuoteBtn.addEventListener('click', () => {
-      const quote = localStorage.getItem('quote');
-      if (quote) {
-        navigator.clipboard.writeText(quote).then(() => {
-          alert('Quote copied to clipboard!');
-        });
-      } else {
-        alert('No quote to copy. Please calculate prices first.');
-      }
-    });
-  });
-
-  // Event listener for adding stickers
-  addStickerBtn.addEventListener('click', () => addStickerInput());
-
-  // Add initial sticker input on load
-  addStickerInput();
-
-  // Ensure the container adjusts dynamically on resize
-  window.addEventListener('resize', () => {
-    const container = document.querySelector('.container');
-    container.style.width = '100%';
   });
 });
