@@ -4,7 +4,6 @@ export function getDOMElements() {
     calculateBtn: document.getElementById('calculate'),
     stickersDiv: document.getElementById('stickers'),
     resultsDiv: document.getElementById('results'),
-    vinylCostInput: document.getElementById('vinyl-cost'),
     vatRateInput: document.getElementById('vat-rate'),
     includeVatCheckbox: document.getElementById('include-vat'),
     darkModeToggle: document.getElementById('dark-mode-toggle'),
@@ -12,6 +11,9 @@ export function getDOMElements() {
     roundedCornersCheckbox: document.getElementById('rounded-corners'),
     toast: document.getElementById('toast'),
     copyQuoteBtn: null, // Will be created dynamically
+    quoteNameInput: document.getElementById('quote-name'),
+    saveQuoteBtn: document.getElementById('save-quote'),
+    savedQuotesList: document.getElementById('saved-quotes-list'),
   };
 }
 
@@ -95,13 +97,27 @@ export function renderResults(resultsDiv, quoteData) {
     return;
   }
 
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'results-actions';
+
   const copyButton = document.createElement('button');
   copyButton.id = 'copy-quote';
   copyButton.className = 'copy-quote-button';
   const copyIcon = document.createElement('i');
   copyIcon.className = 'fas fa-copy';
   copyButton.appendChild(copyIcon);
-  resultsDiv.appendChild(copyButton);
+  actionsDiv.appendChild(copyButton);
+
+  const pdfButton = document.createElement('button');
+  pdfButton.id = 'export-pdf';
+  pdfButton.className = 'pdf-quote-button';
+  const pdfIcon = document.createElement('i');
+  pdfIcon.className = 'fas fa-file-pdf';
+  pdfButton.appendChild(pdfIcon);
+  actionsDiv.appendChild(pdfButton);
+
+  resultsDiv.appendChild(actionsDiv);
+
 
   let fullQuote = `Dear Customer. Thank you for reaching out to us.\nBelow is your Quote based on your request:\n\nMaterial: ${quoteData.material}\n\n`;
 
@@ -159,4 +175,41 @@ export function showToast(message) {
   setTimeout(() => {
     toast.classList.remove('show');
   }, 3000);
+}
+
+export function renderSavedQuotes(savedQuotesList, quotes, loadCallback, deleteCallback) {
+  savedQuotesList.innerHTML = '';
+  if (!quotes || quotes.length === 0) {
+    const p = document.createElement('p');
+    p.textContent = 'No saved quotes yet.';
+    savedQuotesList.appendChild(p);
+    return;
+  }
+
+  quotes.forEach((quote, index) => {
+    const quoteDiv = document.createElement('div');
+    quoteDiv.className = 'saved-quote-item';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = quote.name;
+    quoteDiv.appendChild(nameSpan);
+
+    const buttonGroup = document.createElement('div');
+    buttonGroup.className = 'button-group';
+
+    const loadButton = document.createElement('button');
+    loadButton.textContent = 'Load';
+    loadButton.className = 'load-quote-btn';
+    loadButton.addEventListener('click', () => loadCallback(index));
+    buttonGroup.appendChild(loadButton);
+
+    const deleteButton = document.createElement('button');
+    deleteButton.textContent = 'Delete';
+    deleteButton.className = 'delete-quote-btn';
+    deleteButton.addEventListener('click', () => deleteCallback(index));
+    buttonGroup.appendChild(deleteButton);
+
+    quoteDiv.appendChild(buttonGroup);
+    savedQuotesList.appendChild(quoteDiv);
+  });
 }

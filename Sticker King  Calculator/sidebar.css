@@ -411,10 +411,15 @@ button.main-button:active {
 }
 
 /* Copy Quote Button */
-.copy-quote-button {
+.results-actions {
   position: absolute;
   top: 10px;
   right: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.copy-quote-button, .pdf-quote-button {
   background: var(--primary-color);
   border: none;
   border-radius: 8px;
@@ -522,4 +527,53 @@ button.main-button:active {
     bottom: 0;
     opacity: 0;
   }
+}
+
+/* Saved Quotes List */
+.saved-quote-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid var(--input-border);
+  transition: background-color 0.3s;
+}
+
+.saved-quote-item:hover {
+  background-color: rgba(0,0,0,0.05);
+}
+
+body.dark-mode .saved-quote-item:hover {
+  background-color: rgba(255,255,255,0.05);
+}
+
+.saved-quote-item:last-child {
+  border-bottom: none;
+}
+
+.saved-quote-item .button-group {
+  display: flex;
+  gap: 10px;
+}
+
+.saved-quote-item .button-group button {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.saved-quote-item .button-group button:hover {
+  transform: scale(1.05);
+}
+
+.load-quote-btn {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.delete-quote-btn {
+  background-color: #6c757d;
+  color: white;
 }

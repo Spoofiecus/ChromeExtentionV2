@@ -13,6 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap"
       rel="stylesheet"
     />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   </head>
   <body>
     <div class="container-wrapper">
@@ -34,17 +35,6 @@
             <span class="toggle-icon">▼</span>
           </button>
           <div id="settings-content" class="section-content">
-            <div class="input-label">
-              <input
-                type="number"
-                id="vinyl-cost"
-                min="0"
-                step="0.01"
-                value="460.00"
-                title="Cost of vinyl per square meter"
-              />
-              <span class="tooltip">Cost of vinyl per m² (R)</span>
-            </div>
             <div class="input-label">
               <input
                 type="number"
@@ -76,10 +66,14 @@
           </button>
           <div id="material-content" class="section-content">
             <div class="input-label">
-              <select id="material-select" title="Choose the vinyl material">
+              <select id="material-select" title="Choose the material">
                 <option value="unspecified">Unspecified</option>
-                <option value="gloss">Gloss</option>
-                <option value="matt">MATT</option>
+                <option value="print_only">Print Only (Gloss/Matt/Clear)</option>
+                <option value="cut_contour">Cut Contour Print</option>
+                <option value="uv_lamination">UV Lamination</option>
+                <option value="chromadeck">Chromadeck</option>
+                <option value="poster">Poster</option>
+                <option value="iron_on">Iron On</option>
               </select>
               <span class="tooltip">Material</span>
             </div>
@@ -102,6 +96,22 @@
             <button id="add-sticker" class="main-button">
               <i class="fas fa-plus button-icon"></i> Add Another Sticker
             </button>
+          </div>
+        </div>
+
+        <div class="section">
+          <button class="section-toggle" data-target="saved-quotes-content">
+            <span>Saved Quotes</span>
+            <span class="toggle-icon">▼</span>
+          </button>
+          <div id="saved-quotes-content" class="section-content">
+            <div class="input-label">
+              <input type="text" id="quote-name" placeholder="Enter quote name to save" />
+            </div>
+            <button id="save-quote" class="main-button">
+              <i class="fas fa-save button-icon"></i> Save Current Quote
+            </button>
+            <div id="saved-quotes-list"></div>
           </div>
         </div>
 

@@ -1,6 +1,6 @@
-import { DEFAULT_VINYL_COST, DEFAULT_VAT_RATE, MIN_ORDER_AMOUNT } from './js/config.js';
+import { DEFAULT_VAT_RATE, MIN_ORDER_AMOUNT } from './js/config.js';
 import { calculatePrice } from './js/calculator.js';
-import { getDOMElements, addStickerInput, renderResults, showToast } from './js/ui.js';
+import { getDOMElements, addStickerInput, renderResults, showToast, renderSavedQuotes } from './js/ui.js';
 import { saveDarkMode, loadDarkMode, saveAppState, loadAppState } from './js/storage.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -8,13 +8,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- State Initialization ---
   let appState = {
-    vinylCost: DEFAULT_VINYL_COST,
     vatRate: DEFAULT_VAT_RATE,
     includeVat: false,
     darkMode: false,
     material: 'unspecified',
     roundedCorners: false,
-    stickers: []
+    stickers: [],
+    savedQuotes: []
   };
 
   const loadedState = await loadAppState();
@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // --- UI Initialization ---
-  dom.vinylCostInput.value = appState.vinylCost;
   dom.vatRateInput.value = appState.vatRate;
   dom.includeVatCheckbox.checked = appState.includeVat;
   dom.materialSelect.value = appState.material;
@@ -40,7 +39,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --- Event Listeners ---
 
   // Settings
-  dom.vinylCostInput.addEventListener('change', () => { appState.vinylCost = parseFloat(dom.vinylCostInput.value); saveAppState(appState); });
   dom.vatRateInput.addEventListener('change', () => { appState.vatRate = parseFloat(dom.vatRateInput.value); saveAppState(appState); });
   dom.includeVatCheckbox.addEventListener('change', () => { appState.includeVat = dom.includeVatCheckbox.checked; saveAppState(appState); });
   dom.materialSelect.addEventListener('change', () => { appState.material = dom.materialSelect.value; saveAppState(appState); });
@@ -81,6 +79,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         });
     }
+
+    const newPdfQuoteBtn = document.getElementById('export-pdf');
+    if(newPdfQuoteBtn) {
+        newPdfQuoteBtn.addEventListener('click', () => {
+            exportPdf(quoteText);
+        });
+    }
   }
 
   dom.calculateBtn.addEventListener('click', calculateAndRender);
@@ -91,7 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let totalCostExclVat = 0;
 
     appState.stickers.forEach((sticker, index) => {
-      const { price, stickersPerRow } = calculatePrice(sticker.width, sticker.height, appState.vinylCost);
+      const { price, stickersPerRow } = calculatePrice(sticker.width, sticker.height, appState.material);
       if (price === 'Invalid dimensions') {
         stickerQuotes.push({
           html: `Sticker ${index + 1}: Invalid dimensions`,
@@ -122,6 +127,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  function exportPdf(quoteText) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.text(quoteText, 10, 10);
+    doc.save('StickerKing-Quote.pdf');
+  }
+
   // --- Debounce Utility ---
   function debounce(func, delay) {
     let timeout;
@@ -136,7 +149,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- Auto-calculation Listeners ---
   const inputsToTrack = [
-    dom.vinylCostInput,
     dom.vatRateInput,
     dom.includeVatCheckbox,
     dom.materialSelect,
@@ -152,6 +164,65 @@ document.addEventListener('DOMContentLoaded', async () => {
       debouncedCalculateAndRender();
     }
   });
+
+  // --- Saved Quotes Logic ---
+  function updateSavedQuotesUI() {
+    renderSavedQuotes(dom.savedQuotesList, appState.savedQuotes, loadQuote, deleteQuote);
+  }
+
+  function loadQuote(index) {
+    if (appState.savedQuotes[index]) {
+      appState.stickers = appState.savedQuotes[index].stickers;
+      // Clear current sticker inputs
+      while (dom.stickersDiv.firstChild) {
+        dom.stickersDiv.removeChild(dom.stickersDiv.firstChild);
+      }
+      // Add new sticker inputs
+      if (appState.stickers.length === 0) {
+        addStickerInput(dom.stickersDiv);
+      } else {
+        appState.stickers.forEach(sticker => addStickerInput(dom.stickersDiv, sticker));
+      }
+      showToast('Quote loaded!');
+      saveAppState(appState);
+    }
+  }
+
+  function deleteQuote(index) {
+    appState.savedQuotes.splice(index, 1);
+    updateSavedQuotesUI();
+    showToast('Quote deleted!');
+    saveAppState(appState);
+  }
+
+  dom.saveQuoteBtn.addEventListener('click', () => {
+    const quoteName = dom.quoteNameInput.value.trim();
+    if (!quoteName) {
+      showToast('Please enter a name for the quote.');
+      return;
+    }
+    const currentStickers = Array.from(dom.stickersDiv.querySelectorAll('.sticker-input')).map(input => {
+      const id = input.getAttribute('data-id');
+      return {
+        width: input.querySelector(`#width-${id}`).value,
+        height: input.querySelector(`#height-${id}`).value,
+        quantity: input.querySelector(`#quantity-${id}`).value
+      };
+    });
+
+    appState.savedQuotes.push({
+      name: quoteName,
+      stickers: currentStickers
+    });
+
+    dom.quoteNameInput.value = '';
+    updateSavedQuotesUI();
+    showToast('Quote saved!');
+    saveAppState(appState);
+  });
+
+  // Initial render of saved quotes
+  updateSavedQuotesUI();
 
   // --- Collapsible sections ---
   document.querySelectorAll('.section-toggle').forEach(button => {

@@ -1,10 +1,11 @@
-import { ROLL_WIDTH, BLEED, MIN_PRICE_PER_STICKER } from './config.js';
+import { ROLL_WIDTH, BLEED, MIN_PRICE_PER_STICKER, MATERIAL_PRICES } from './config.js';
 
-export function calculatePrice(width, height, vinylCost) {
+export function calculatePrice(width, height, material) {
   const W = parseFloat(width);
   const H = parseFloat(height);
+  const vinylCost = MATERIAL_PRICES[material] || 0;
 
-  if (isNaN(W) || isNaN(H) || W <= 0 || H <= 0) {
+  if (isNaN(W) || isNaN(H) || W <= 0 || H <= 0 || vinylCost === 0) {
     return { price: 'Invalid dimensions', stickersPerRow: 0 };
   }
 
