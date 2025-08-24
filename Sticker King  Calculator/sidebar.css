@@ -327,6 +327,10 @@ body.dark-mode .sticker-input input:focus {
   background: rgba(0, 0, 0, 0.5);
 }
 
+.sticker-input input.invalid {
+  border-color: #E74C3C;
+}
+
 .sticker-input .remove-button {
   flex: 0 0 32px;
   height: 32px;
@@ -472,3 +476,50 @@ button.main-button:active {
 #results.show p:nth-child(3) { transition-delay: 0.3s; }
 #results.show p:nth-child(4) { transition-delay: 0.4s; }
 #results.show p:nth-child(5) { transition-delay: 0.5s; }
+
+/* Toast styles */
+#toast {
+  visibility: hidden;
+  min-width: 250px;
+  margin-left: -125px;
+  background-color: #333;
+  color: #fff;
+  text-align: center;
+  border-radius: 8px;
+  padding: 16px;
+  position: fixed;
+  z-index: 10;
+  left: 50%;
+  bottom: 30px;
+  font-size: 1rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transition: visibility 0s, opacity 0.5s linear;
+}
+
+#toast.show {
+  visibility: visible;
+  opacity: 1;
+  animation: fadein 0.5s, fadeout 0.5s 2.5s forwards;
+}
+
+@keyframes fadein {
+  from {
+    bottom: 0;
+    opacity: 0;
+  }
+  to {
+    bottom: 30px;
+    opacity: 1;
+  }
+}
+
+@keyframes fadeout {
+  from {
+    bottom: 30px;
+    opacity: 1;
+  }
+  to {
+    bottom: 0;
+    opacity: 0;
+  }
+}
